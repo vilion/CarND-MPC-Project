@@ -2,6 +2,40 @@
 Self-Driving Car Engineer Nanodegree Program
 
 ---
+## Implementation
+### 1.The Model
+The state is consists of 6 items. X coordinate, y coordinate, velocity, angle, cross track error, psi error.
+The car move with actuators. The longitudinal acceleration and angular acceleration.
+The state is updated by the following equations.
+```
+next_x_coordinate = x + v * CppAD::cos(psi) * dt;
+next_y_coordinate = y + v * CppAD::sin(psi) * dt;
+next_psi = psi - v * delta/Lf * dt;
+next_velocity = v + a * dt;
+next_cte = (f(x) - y) + (v * sin(epsi) * dt)
+next_epsi = (psi0 - psides0) - v * delta / Lf * dt
+```
+
+### 2.Timestep Length and Elapsed Duration (N & dt)
+The prediction horizon is the product of N & dt.
+The prediction horizon should not be long. so I choose N=10 and dt = 0.1.
+The values works well when the speed set to 100 mph.
+
+### 3.Polynomial Fitting and MPC Preprocessing
+The car's position is in the car coordinate, so I turn the waypoints from global coordinate to car coordinate.
+And then, I use the waypoints of car coordinate to get the polynomial.
+
+### 4.Model Predictive Control with Latency
+To take into account the latency, when I first get waypoints, I transformed the waypoints to the one that is at the time when the latency time is elapsed.
+
+The code below is in the main.cpp.
+```
+double latency = 0.1;
+px = px + v*cos(psi)*latency;
+py = py + v*sin(psi)*latency;
+psi = psi - v*delta/Lf*latency;
+v = v + acceleration*latency;
+```
 
 ## Dependencies
 
@@ -19,7 +53,7 @@ Self-Driving Car Engineer Nanodegree Program
   * Run either `install-mac.sh` or `install-ubuntu.sh`.
   * If you install from source, checkout to commit `e94b6e1`, i.e.
     ```
-    git clone https://github.com/uWebSockets/uWebSockets 
+    git clone https://github.com/uWebSockets/uWebSockets
     cd uWebSockets
     git checkout e94b6e1
     ```
@@ -42,7 +76,7 @@ Self-Driving Car Engineer Nanodegree Program
        per this [forum post](https://discussions.udacity.com/t/incorrect-checksum-for-freed-object/313433/19).
   * Linux
     * You will need a version of Ipopt 3.12.1 or higher. The version available through `apt-get` is 3.11.x. If you can get that version to work great but if not there's a script `install_ipopt.sh` that will install Ipopt. You just need to download the source from the Ipopt [releases page](https://www.coin-or.org/download/source/Ipopt/) or the [Github releases](https://github.com/coin-or/Ipopt/releases) page.
-    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `sudo bash install_ipopt.sh Ipopt-3.12.1`. 
+    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `sudo bash install_ipopt.sh Ipopt-3.12.1`.
   * Windows: TODO. If you can use the Linux subsystem and follow the Linux instructions.
 * [CppAD](https://www.coin-or.org/CppAD/)
   * Mac: `brew install cppad`
