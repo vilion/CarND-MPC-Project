@@ -112,7 +112,6 @@ int main() {
           double cte = polyeval(coeffs, 0);
           double epsi = -atan(coeffs[1]);
 
-
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
@@ -120,7 +119,7 @@ int main() {
           *
           */
 
-          double steer_value = j[1]["steer_angle"];
+          double steer_value = j[1]["steering_angle"];
           double throttle_value = j[1]["throttle"];
 
           Eigen::VectorXd state(6);

@@ -23,7 +23,7 @@ const double Lf = 2.67;
 
 double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v = 100;
+double ref_v = 50;
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -42,6 +42,9 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
+
+    cout << "start fg_eval " << endl; 
+
     // TODO: implement MPC
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
@@ -55,8 +58,8 @@ class FG_eval {
     // any anything you think may be beneficial.
     double cost = 0;
     for (int t = 0; t < N; t++) {
-      fg[0] += 2000*CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += 2000*CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += 2000*CppAD::pow(vars[cte_start + t]- ref_cte, 2);
+      fg[0] += 2000*CppAD::pow(vars[epsi_start + t] - ref_epsi, 2);
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
     }
 
@@ -71,6 +74,8 @@ class FG_eval {
       fg[0] += 200 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += 10*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
+
+    cout << "after init cost in fg[0] " << endl; 
 
     //
     // Setup Constraints
@@ -90,7 +95,8 @@ class FG_eval {
     fg[1 + epsi_start] = vars[epsi_start];
 
     // The rest of the constraints
-    for (int t = 0; t < N; t++) {
+    cout << "before const loop " << endl; 
+    for (int t = 0; t < N-1; t++) {
       AD<double> x1 = vars[x_start + t + 1];
       AD<double> y1 = vars[y_start + t + 1];
       AD<double> psi1 = vars[psi_start + t + 1];
@@ -108,8 +114,10 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t];
       AD<double> a0 = vars[a_start + t];
 
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3] * x0 * x0 * x0;
-      AD<double> psides0 = CppAD::atan(coeffs[1] + coeffs[2] * x0 * 2 + coeffs[3] * x0 * x0 * 3);
+      AD<double> f0 = 
+        coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3] * x0 * x0 * x0;
+      AD<double> psides0 = 
+        CppAD::atan(3 * coeffs[3] * x0 * x0 + 2 * coeffs[2] * x0 + coeffs[1]);
 
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
@@ -130,11 +138,12 @@ class FG_eval {
       // TODO: Setup the rest of the model constraints
       fg[2 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
       fg[2 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-      fg[2 + psi_start + t] = psi1 - (psi0 + v0 * delta0/Lf * dt);
+      fg[2 + psi_start + t] = psi1 - (psi0 - v0 * delta0/Lf * dt);
       fg[2 + v_start + t] = v1 - (v0 + a0 * dt);
-      fg[2 + cte_start + t] = cte1 - (f0 - y0) + (v0*CppAD::sin(epsi0) * dt);
-      fg[2 + epsi_start + t] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+      fg[2 + cte_start + t] = cte1 - ((f0 - y0) + (v0*CppAD::sin(epsi0) * dt));
+      fg[2 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf * dt);
     }
+    cout << "after const loop " << endl; 
   }
 };
 
@@ -145,6 +154,8 @@ MPC::MPC() {}
 MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+  //cout << "solve start" << endl; 
+
   bool ok = true;
   size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
@@ -172,6 +183,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars[i] = 0;
   }
 
+  //cout << "before vars bound" << endl; 
+
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
   // TODO: Set lower and upper limits for variables.
@@ -193,6 +206,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
   }
+
+  //cout << "after vars bound" << endl; 
 
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state.
@@ -217,8 +232,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   constraints_upperbound[cte_start] = cte; 
   constraints_upperbound[epsi_start] = epsi; 
 
+  //cout << "after const bound" << endl; 
+
   // object that computes objective and constraints
   FG_eval fg_eval(coeffs);
+
+  //cout << "after init fg_eval" << endl; 
 
   //
   // NOTE: You don't have to worry about these options
@@ -241,10 +260,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
 
+  //cout << "before ipopt solve" << endl; 
+
   // solve the problem
   CppAD::ipopt::solve<Dvector, FG_eval>(
       options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
       constraints_upperbound, fg_eval, solution);
+
+  cout << "after ipopt solve" << endl; 
 
   // Check some of the solution values
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
